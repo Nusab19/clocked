@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stopwatch</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Ubuntu Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono:wght@400;700&family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Ubuntu', 'system-ui', 'sans-serif'],
+            mono: ['"Ubuntu Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            primary: '#3b82f6',
+            'primary-hover': '#2563eb',
+            running: '#0ea5e9',
+            'running-hover': '#0284c7',
+            active: '#bfdbfe',    // very light blue for active HH/MM/SS
+            muted: '#71717a',     // neutral-500
+          },
+          borderRadius: { '4xl': '2rem' }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    *, *::before, *::after { outline: none !important; }
+    button { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+
+<body class="h-screen bg-neutral-950 flex items-center justify-center">
+  <div class="w-full max-w-lg px-8 text-center">
+
+    <!-- Time Display -->
+    <h1 id="display" class="text-8xl md:text-9xl lg:text-[10rem] leading-none font-bold tracking-tighter font-mono select-none mb-20">
+      <!-- Will be filled by JS -->
+    </h1>
+
+    <!-- Buttons -->
+    <div class="flex justify-center gap-10">
+      <button id="startPauseBtn"
+        class="px-20 py-10 rounded-4xl bg-primary text-white text-4xl font-bold shadow-2xl hover:bg-primary-hover transition-all duration-300 active:scale-95">
+        <span id="startPauseText">Start</span>
+      </button>
+
+      <button id="resetBtn"
+        class="px-20 py-10 rounded-4xl bg-neutral-800 text-white text-4xl font-bold shadow-2xl hover:bg-neutral-700 transition-all duration-300 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+        disabled>
+        Reset
+      </button>
+    </div>
+
+    <p class="mt-12 text-neutral-500 text-lg font-medium">
+      Press <kbd class="px-3 py-1 bg-neutral-800 rounded text-neutral-300 text-sm font-medium">Space</kbd> to Start / Pause
+    </p>
+  </div>
+
+  <script>
+    const display = document.getElementById('display');
+    const startPauseBtn = document.getElementById('startPauseBtn');
+    const startPauseText = document.getElementById('startPauseText');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let startTime = 0;
+    let elapsedTime = 0;
+    let timerInterval = null;
+    let isRunning = false;
+    const STORAGE_KEY = 'stopwatch_state';
+
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const centi = Math.floor((ms % 1000) / 10);
+
+      const hStr = String(hours).padStart(2, '0');
+      const mStr = String(minutes).padStart(2, '0');
+      const sStr = String(seconds).padStart(2, '0');
+      const cStr = String(centi).padStart(2, '0');
+
+      const activeClass = 'text-active';
+      const mutedClass = 'text-muted';
+
+      return `
+        <span class="${hours > 0 ? activeClass : mutedClass}">${hStr}</span>:<span class="${minutes > 0 || hours > 0 ? activeClass : mutedClass}">${mStr}</span>:<span class="${seconds > 0 || minutes > 0 || hours > 0 ? activeClass : mutedClass}">${sStr}</span>.<span class="text-muted text-7xl lg:text-8xl">${cStr}</span>
+      `;
+    }
+
+    function updateDisplay() {
+      display.innerHTML = formatTime(elapsedTime);
+    }
+
+    function start() {
+      if (isRunning) return;
+      isRunning = true;
+      startTime = Date.now() - elapsedTime;
+
+      timerInterval = setInterval(() => {
+        elapsedTime = Date.now() - startTime;
+        updateDisplay();
+        saveState();
+      }, 10);
+
+      startPauseText.textContent = 'Pause';
+      startPauseBtn.classList.replace('bg-primary', 'bg-running');
+      startPauseBtn.classList.replace('hover:bg-primary-hover', 'hover:bg-running-hover');
+      resetBtn.disabled = false;
+      resetBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+      saveState();
+    }
+
+    function pause() {
+      clearInterval(timerInterval);
+      isRunning = false;
+      startPauseText.textContent = 'Start';
+      startPauseBtn.classList.replace('bg-running', 'bg-primary');
+      startPauseBtn.classList.replace('hover:bg-running-hover', 'hover:bg-primary-hover');
+      saveState();
+    }
+
+    function reset() {
+      if (!confirm('Reset stopwatch to 00:00:00.00?')) return;
+
+      clearInterval(timerInterval);
+      isRunning = false;
+      elapsedTime = 0;
+      updateDisplay();
+      startPauseText.textContent = 'Start';
+      startPauseBtn.classList.replace('bg-running', 'bg-primary');
+      startPauseBtn.classList.replace('hover:bg-running-hover', 'hover:bg-primary-hover');
+      resetBtn.disabled = true;
+      resetBtn.classList.add('opacity-40', 'cursor-not-allowed');
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    function saveState() {
+      const state = {
+        elapsedTime,
+        isRunning,
+        startTime: isRunning ? Date.now() : null
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) { updateDisplay(); return; }
+
+      const state = JSON.parse(saved);
+      elapsedTime = state.elapsedTime || 0;
+
+      if (state.isRunning && state.startTime) {
+        startTime = state.startTime;
+        elapsedTime = Date.now() - startTime;
+        start();
+      } else {
+        updateDisplay();
+        if (elapsedTime > 0) {
+          resetBtn.disabled = false;
+          resetBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+        }
+      }
+    }
+
+    // Controls
+    startPauseBtn.addEventListener('click', () => isRunning ? pause() : start());
+    resetBtn.addEventListener('click', reset);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        startPauseBtn.click();
+      }
+    });
+
+    // Init
+    loadState();
+  </script>
+</body>
+</html>
