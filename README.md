@@ -6,3 +6,7 @@ The default one which google shows doesn't stay in full screen and doesn't stay 
 
 
 So here's this simple stopwatch website without any junks.
+
+Live at: https://clocked.pages.dev/
+
+<p align="center"><img src="opengraph.png" height="500"/></p>
